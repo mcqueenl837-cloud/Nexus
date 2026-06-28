@@ -233,6 +233,17 @@ def run_phase3():
         phase2_data = json.load(file)
 
     ids, documents, metadatas = prepare_documents(phase2_data)
+    
+    if len(documents)==0:
+        st.error(
+            "This PDF is not supported.\n\n"
+            "Reason:\n"
+            "- No topics could be extracted.\n"
+            "- The PDF may not contain a Table of Contents or recognizable headings.\n\n"
+            "Please upload another textbook."
+        )
+        return
+    
     embeddings = load_embedding_model().encode(documents)
 
     chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
