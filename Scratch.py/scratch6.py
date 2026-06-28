@@ -229,39 +229,68 @@ Related content:
 
 
 def run_phase3():
-    with PHASE2_JSON.open("r", encoding="utf-8") as file:
-        phase2_data = json.load(file)
-
-    ids, documents, metadatas = prepare_documents(phase2_data)
-    
-    if len(documents)==0:
-        st.error(
-            "This PDF is not supported.\n\n"
-            "Reason:\n"
-            "- No topics could be extracted.\n"
-            "- The PDF may not contain a Table of Contents or recognizable headings.\n\n"
-            "Please upload another textbook."
-        )
-        return
-    
-    embeddings = load_embedding_model().encode(documents)
-
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
     try:
-        chroma_client.delete_collection(COLLECTION_NAME)
-    except Exception:
-        pass
 
-    collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+        with PHASE2_JSON.open("r",encoding="utf-8") as file:
+            phase2_data=json.load(file)
 
-    collection.add(
-        ids=ids,
-        documents=documents,
-        metadatas=metadatas,
-        embeddings=embeddings.tolist(),
-    )
-def is_text_based_pdf(pdf_path):
+        if not isinstance(phase2_data,dict) or len(phase2_data)==0:
+            st.warning(
+                "This PDF could not be processed.\n\n"
+                "No topics were extracted from the document.\n"
+                "Please upload another textbook."
+            )
+            return
+
+        ids,documents,metadatas=prepare_documents(phase2_data)
+
+        if len(ids)==0 or len(documents)==0 or len(metadatas)==0:
+            st.warning(
+                "This PDF could not be processed.\n\n"
+                "No valid content was extracted from the document.\n"
+                "Please upload another textbook."
+            )
+            return
+
+        embeddings=load_embedding_model().encode(documents)
+
+        if embeddings is None or len(embeddings)==0:
+            st.warning(
+                "This PDF could not be processed.\n\n"
+                "Embeddings could not be generated.\n"
+                "Please upload another textbook."
+            )
+            return
+
+        chroma_client=chromadb.PersistentClient(path=str(CHROMA_PATH))
+
+        try:
+            chroma_client.delete_collection(COLLECTION_NAME)
+        except Exception:
+            pass
+
+        collection=chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+
+        collection.add(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings.tolist(),
+        )
+
+    except Exception as e:
+
+        print("Phase 3 Error:",e)
+
+        st.error(
+            "This PDF is not supported.\n\n"
+            "The document could not be processed because it does not contain enough structured information "
+            "to build the knowledge base.\n\n"
+            "Please upload another text-based textbook."
+        )
+
+        returndef is_text_based_pdf(pdf_path):
     doc = fitz.open(str(pdf_path))
 
     for page in doc:
