@@ -81,29 +81,42 @@ def build_dict(doc,start_page):
     return book_dict
 
 
-def process_pdf(pdf_path):
+def process_pdf(pdf_path, output_directory="."):
 
-    doc=fitz.open(pdf_path)
+    os = __import__("os")
+    os.makedirs(output_directory, exist_ok=True)
+
+    doc = fitz.open(pdf_path)
 
     if not is_text_pdf(doc):
         print("This is not a text-based PDF file.")
         doc.close()
         return None
 
-    toc=get_toc(doc)
+    toc = get_toc(doc)
 
-    if len(toc)==0:
-        start_page=1
+    if len(toc) == 0:
+        print("No TOC found. Starting extraction from page 1.")
+        start_page = 1
     else:
-        start_page=find_start_page(toc)
+        start_page = find_start_page(toc)
 
     if start_page is None:
-        start_page=1
+        print("Could not determine the first chapter. Starting from page 1.")
+        start_page = 1
 
-    book_dict=build_dict(doc,start_page)
+    print("=" * 40)
+    print("TOC:", toc)
+    print("Length of TOC:", len(toc))
+    print("start_page:", start_page)
+    print("=" * 40)
 
-    with open("extracted_text1.json","w",encoding="utf-8") as file:
-        json.dump(book_dict,file,indent=4,ensure_ascii=False)
+    book_dict = build_dict(doc, start_page)
+
+    output_path = os.path.join(output_directory, "extracted_text1.json")
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(book_dict, file, indent=4, ensure_ascii=False)
 
     doc.close()
 

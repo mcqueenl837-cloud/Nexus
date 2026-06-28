@@ -123,22 +123,54 @@ def load_backend_function(file_name, function_name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return getattr(module, function_name)
+def get_session_id():
+    if "session_id" not in st.session_state:
+        uuid = __import__("uuid")
+        st.session_state["session_id"] = str(uuid.uuid4())
+
+    return st.session_state["session_id"]
+
+
+def get_session_dir():
+    session_dir = APP_DIR / "sessions" / get_session_id()
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir
+
+
+def get_session_paths():
+    session_dir = get_session_dir()
+    uploaded_books_dir = session_dir / "uploaded_books"
+    uploaded_books_dir.mkdir(parents=True, exist_ok=True)
+
+    return {
+        "session_dir": session_dir,
+        "pdf_dir": uploaded_books_dir,
+        "pdf_path": uploaded_books_dir / "current_book.pdf",
+        "phase2_json": session_dir / "phase2_topics.json",
+        "chroma_path": session_dir / "chroma_storage",
+    }
+
+
+def get_collection_name():
+    return f"book_content_{get_session_id()}"
 
 
 def save_uploaded_pdf(uploaded_file):
-    PDF_DIR.mkdir(exist_ok=True)
-    PDF_PATH.write_bytes(uploaded_file.getbuffer())
+    paths = get_session_paths()
+    paths["pdf_path"].write_bytes(uploaded_file.getbuffer())
     st.session_state["page_number"] = 1
 
-
 def display_pdf():
-    if not PDF_PATH.exists():
+    paths = get_session_paths()
+    pdf_path = paths["pdf_path"]
+
+    if not pdf_path.exists():
         st.info("Upload a PDF to preview it here.")
         return
 
     page_number = st.session_state.get("page_number", 1)
 
-    doc = fitz.open(str(PDF_PATH))
+    doc = fitz.open(str(pdf_path))
     total_pages = len(doc)
 
     page_number = max(1, min(page_number, total_pages))
@@ -163,30 +195,21 @@ def display_pdf():
         unsafe_allow_html=True,
     )
 
-
 def reset_current_book():
-    for file_path in [
-        PDF_PATH,
-        APP_DIR / "extracted_text1.json",
-        APP_DIR / "phase2_topics.json",
-    ]:
-        if file_path.exists():
-            file_path.unlink()
+    paths = get_session_paths()
+    shutil = __import__("shutil")
 
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
+    if paths["session_dir"].exists():
+        shutil.rmtree(paths["session_dir"], ignore_errors=True)
 
-    try:
-        chroma_client.delete_collection(COLLECTION_NAME)
-    except Exception:
-        pass
+    paths["session_dir"].mkdir(parents=True, exist_ok=True)
+    paths["pdf_dir"].mkdir(parents=True, exist_ok=True)
 
     st.session_state["book_ready"] = False
     st.session_state["chat_history"] = []
     st.session_state["uploaded_file_name"] = None
     st.session_state["page_number"] = 1
     st.session_state["pipeline_error"] = None
-
-
 def is_text_based_pdf(pdf_path):
     doc = fitz.open(str(pdf_path))
 
@@ -202,19 +225,25 @@ def is_text_based_pdf(pdf_path):
 
 
 def run_phase1():
+    paths = get_session_paths()
+
     process_pdf = load_backend_function("scratch2.py", "process_pdf")
-    result = process_pdf(str(PDF_PATH))
+    result = process_pdf(str(paths["pdf_path"]), str(paths["session_dir"]))
 
     if result is None:
-        st.warning("This PDF appears to be image-based and cannot be processed. Please upload a text-based PDF.")
-        st.stop()
+        raise UnsupportedPDFError(
+            "This PDF does not appear to be text-based. It may be image-based or scanned. "
+            "Please upload a text-based PDF."
+        )
 
     return result
 def run_phase2():
+    paths = get_session_paths()
+
     try:
         subprocess.run(
             [sys.executable, str(APP_DIR / "scratch3.py")],
-            cwd=str(APP_DIR),
+            cwd=str(paths["session_dir"]),
             capture_output=True,
             text=True,
             check=True,
@@ -222,15 +251,14 @@ def run_phase2():
     except subprocess.CalledProcessError:
         raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
 
-    if not PHASE2_JSON.exists():
+    if not paths["phase2_json"].exists():
         raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
 
-    with PHASE2_JSON.open("r", encoding="utf-8") as file:
+    with paths["phase2_json"].open("r", encoding="utf-8") as file:
         phase2_data = json.load(file)
 
     if not isinstance(phase2_data, dict) or len(phase2_data) == 0:
         raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
-
 
 def prepare_documents(phase2_data):
     ids = []
@@ -272,7 +300,9 @@ Related content:
 
 
 def run_phase3():
-    with PHASE2_JSON.open("r", encoding="utf-8") as file:
+    paths = get_session_paths()
+
+    with paths["phase2_json"].open("r", encoding="utf-8") as file:
         phase2_data = json.load(file)
 
     if not isinstance(phase2_data, dict) or len(phase2_data) == 0:
@@ -293,17 +323,15 @@ def run_phase3():
     if len(embeddings_list) == 0:
         raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
 
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
+    chroma_client = chromadb.PersistentClient(path=str(paths["chroma_path"]))
+    collection_name = get_collection_name()
 
     try:
-        chroma_client.delete_collection(COLLECTION_NAME)
+        chroma_client.delete_collection(collection_name)
     except Exception:
         pass
 
-    collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
-    if not embeddings or len(embeddings) == 0:
-        st.error("No text could be extracted from this PDF. Please upload a text-based PDF.")
-        return
+    collection = chroma_client.get_or_create_collection(name=collection_name)
 
     collection.add(
         ids=ids,
@@ -342,10 +370,11 @@ def process_book_pipeline():
 
 
 def build_prompt(question):
+    paths = get_session_paths()
     embedding_model = load_embedding_model()
 
-    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-    collection = chroma_client.get_collection(COLLECTION_NAME)
+    chroma_client = chromadb.PersistentClient(path=str(paths["chroma_path"]))
+    collection = chroma_client.get_collection(get_collection_name())
 
     query_embedding = embedding_model.encode(question).tolist()
 
@@ -394,7 +423,6 @@ answer:
 """
 
     return prompt
-
 
 def ask_backend(prompt):
     if prompt == "OUT_OF_BOOK":
