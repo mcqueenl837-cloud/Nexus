@@ -183,14 +183,26 @@ def run_phase1():
 
 
 def run_phase2():
-    subprocess.run(
-        [sys.executable, str(APP_DIR / "scratch3.py")],
-        cwd=str(APP_DIR),
-        capture_output=True,
-        text=True,
-        check=True,
-    )
 
+    try:
+
+        subprocess.run(
+            [sys.executable,str(APP_DIR/"scratch3.py")],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    except subprocess.CalledProcessError as e:
+
+        st.error(
+            "This PDF cannot be processed.\n\n"
+            "No recognizable chapter headings were found.\n"
+            "Please upload another textbook."
+        )
+
+        raise RuntimeError("Phase 2 extraction failed.") from e
 
 def prepare_documents(phase2_data):
     ids = []
@@ -290,7 +302,8 @@ def run_phase3():
             "Please upload another text-based textbook."
         )
 
-        returndef is_text_based_pdf(pdf_path):
+        return
+def is_text_based_pdf(pdf_path):
     doc = fitz.open(str(pdf_path))
 
     for page in doc:
