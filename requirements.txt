@@ -1,1 +1,7 @@
-CUsersKajal.vscodeNew folder
+pymupdf
+chromadb
+sentence-transformers
+groq
+streamlit
+python-dotenv
+pdfplumber
