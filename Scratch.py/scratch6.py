@@ -1,4 +1,5 @@
 #final phase streamlit frontend
+# final phase streamlit frontend
 import base64
 import importlib.util
 import json
@@ -21,6 +22,15 @@ PHASE2_JSON = APP_DIR / "phase2_topics.json"
 CHROMA_PATH = APP_DIR / "chroma_storage"
 COLLECTION_NAME = "book_content"
 
+UNSUPPORTED_PDF_MESSAGE = """This PDF cannot be processed.
+
+Possible reasons:
+- No usable Table of Contents was found.
+- No recognizable chapter headings were detected.
+- No searchable knowledge could be extracted.
+
+Please upload another textbook."""
+
 os.chdir(APP_DIR)
 
 st.set_page_config(
@@ -29,6 +39,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+
+class UnsupportedPDFError(Exception):
+    pass
 
 
 def apply_theme():
@@ -170,6 +184,21 @@ def reset_current_book():
     st.session_state["chat_history"] = []
     st.session_state["uploaded_file_name"] = None
     st.session_state["page_number"] = 1
+    st.session_state["pipeline_error"] = None
+
+
+def is_text_based_pdf(pdf_path):
+    doc = fitz.open(str(pdf_path))
+
+    for page in doc:
+        text = page.get_text().strip()
+
+        if len(text) > 50:
+            doc.close()
+            return True
+
+    doc.close()
+    return False
 
 
 def run_phase1():
@@ -177,32 +206,35 @@ def run_phase1():
     result = process_pdf(str(PDF_PATH))
 
     if result is None:
-        raise RuntimeError("The uploaded PDF may not be text-based.")
+        raise UnsupportedPDFError(
+            "This PDF does not appear to be text-based. It may be image-based or scanned. "
+            "Please upload a text-based PDF."
+        )
 
     return result
 
 
 def run_phase2():
-
     try:
-
         subprocess.run(
-            [sys.executable,str(APP_DIR/"scratch3.py")],
+            [sys.executable, str(APP_DIR / "scratch3.py")],
             cwd=str(APP_DIR),
             capture_output=True,
             text=True,
             check=True,
         )
+    except subprocess.CalledProcessError:
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
 
-    except subprocess.CalledProcessError as e:
+    if not PHASE2_JSON.exists():
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
 
-        st.error(
-            "This PDF cannot be processed.\n\n"
-            "No recognizable chapter headings were found.\n"
-            "Please upload another textbook."
-        )
+    with PHASE2_JSON.open("r", encoding="utf-8") as file:
+        phase2_data = json.load(file)
 
-        raise RuntimeError("Phase 2 extraction failed.") from e
+    if not isinstance(phase2_data, dict) or len(phase2_data) == 0:
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
+
 
 def prepare_documents(phase2_data):
     ids = []
@@ -210,10 +242,13 @@ def prepare_documents(phase2_data):
     metadatas = []
 
     for topic_key, topic_data in phase2_data.items():
-        placement = topic_data["placement"]
-        page = topic_data["page"]
-        text = topic_data["text"]
+        placement = topic_data.get("placement")
+        page = topic_data.get("page")
+        text = topic_data.get("text", "")
         related_content = topic_data.get("related_content", {})
+
+        if not placement or not page or not text.strip():
+            continue
 
         document_text = f"""
 Title: {topic_key}
@@ -241,98 +276,66 @@ Related content:
 
 
 def run_phase3():
+    with PHASE2_JSON.open("r", encoding="utf-8") as file:
+        phase2_data = json.load(file)
+
+    if not isinstance(phase2_data, dict) or len(phase2_data) == 0:
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
+
+    ids, documents, metadatas = prepare_documents(phase2_data)
+
+    if len(ids) == 0 or len(documents) == 0 or len(metadatas) == 0:
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
+
+    embeddings = load_embedding_model().encode(documents)
+
+    if embeddings is None or len(embeddings) == 0:
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
+
+    chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
     try:
+        chroma_client.delete_collection(COLLECTION_NAME)
+    except Exception:
+        pass
 
-        with PHASE2_JSON.open("r",encoding="utf-8") as file:
-            phase2_data=json.load(file)
+    collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
 
-        if not isinstance(phase2_data,dict) or len(phase2_data)==0:
-            st.warning(
-                "This PDF could not be processed.\n\n"
-                "No topics were extracted from the document.\n"
-                "Please upload another textbook."
-            )
-            return
+    collection.add(
+        ids=ids,
+        documents=documents,
+        metadatas=metadatas,
+        embeddings=embeddings.tolist(),
+    )
 
-        ids,documents,metadatas=prepare_documents(phase2_data)
-
-        if len(ids)==0 or len(documents)==0 or len(metadatas)==0:
-            st.warning(
-                "This PDF could not be processed.\n\n"
-                "No valid content was extracted from the document.\n"
-                "Please upload another textbook."
-            )
-            return
-
-        embeddings=load_embedding_model().encode(documents)
-
-        if embeddings is None or len(embeddings)==0:
-            st.warning(
-                "This PDF could not be processed.\n\n"
-                "Embeddings could not be generated.\n"
-                "Please upload another textbook."
-            )
-            return
-
-        chroma_client=chromadb.PersistentClient(path=str(CHROMA_PATH))
-
-        try:
-            chroma_client.delete_collection(COLLECTION_NAME)
-        except Exception:
-            pass
-
-        collection=chroma_client.get_or_create_collection(name=COLLECTION_NAME)
-
-        collection.add(
-            ids=ids,
-            documents=documents,
-            metadatas=metadatas,
-            embeddings=embeddings.tolist(),
-        )
-
-    except Exception as e:
-
-        print("Phase 3 Error:",e)
-
-        st.error(
-            "This PDF is not supported.\n\n"
-            "The document could not be processed because it does not contain enough structured information "
-            "to build the knowledge base.\n\n"
-            "Please upload another text-based textbook."
-        )
-
-        return
-def is_text_based_pdf(pdf_path):
-    doc = fitz.open(str(pdf_path))
-
-    for page in doc:
-        text = page.get_text().strip()
-
-        if len(text) > 50:
-            doc.close()
-            return True
-
-    doc.close()
-    return False
 
 def process_book_pipeline():
-    if not is_text_based_pdf(PDF_PATH):
-        st.session_state["book_ready"] = False
-        st.error(
-            "This PDF does not appear to be text-based. It may be image-based or scanned. "
-            "Please upload a text-based PDF."
-        )
-        return
+    st.session_state["book_ready"] = False
+    st.session_state["pipeline_error"] = None
 
-    run_phase1()
-    run_phase2()
-    run_phase3()
+    try:
+        if not is_text_based_pdf(PDF_PATH):
+            raise UnsupportedPDFError(
+                "This PDF does not appear to be text-based. It may be image-based or scanned. "
+                "Please upload a text-based PDF."
+            )
+
+        run_phase1()
+        run_phase2()
+        run_phase3()
+
+    except UnsupportedPDFError as error:
+        st.session_state["pipeline_error"] = str(error)
+        st.session_state["book_ready"] = False
+        return False
+
+    except Exception:
+        st.session_state["pipeline_error"] = UNSUPPORTED_PDF_MESSAGE
+        st.session_state["book_ready"] = False
+        return False
+
     st.session_state["book_ready"] = True
-    run_phase1()
-    run_phase2()
-    run_phase3()
-    st.session_state["book_ready"] = True
+    return True
 
 
 def build_prompt(question):
@@ -436,6 +439,9 @@ def render_pdf_panel():
             with st.spinner("Processing book..."):
                 process_book_pipeline()
 
+    if st.session_state.get("pipeline_error"):
+        st.error(st.session_state["pipeline_error"])
+
     page_controls = st.columns(3)
 
     with page_controls[0]:
@@ -497,7 +503,7 @@ def render_chat_panel():
             st.write(question)
 
         if not st.session_state.get("book_ready"):
-            answer = "Please upload and process a textbook first."
+            answer = "Please upload and process a supported textbook first."
         else:
             with st.spinner("Searching textbook and generating answer..."):
                 prompt = build_prompt(question)

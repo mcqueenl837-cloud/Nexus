@@ -102,23 +102,12 @@ def extract():
     
     return dict_topic
 
-
 result=extract()
-
-if len(result)==0:
-
-    with open("phase2_topics.json","w",encoding="utf-8") as file:
-        json.dump({},file,indent=4,ensure_ascii=False)
-
-    raise RuntimeError(
-        "No topics could be extracted from this PDF. "
-        "The document may not contain recognizable chapter headings."
-    )
-
-with open("phase2_topics.json","w",encoding="utf-8") as file:
-    json.dump(result,file,indent=4,ensure_ascii=False)
+with open("phase2_topics.json", "w", encoding="utf-8") as file:
+    json.dump(result, file, indent=4, ensure_ascii=False)
 
 print("Phase 2 extraction complete.")
+
               
                   
 
