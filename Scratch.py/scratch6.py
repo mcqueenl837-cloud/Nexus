@@ -292,6 +292,11 @@ def run_phase3():
     if embeddings is None or len(embeddings) == 0:
         raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
 
+    embeddings_list = embeddings.tolist()
+
+    if len(embeddings_list) == 0:
+        raise UnsupportedPDFError(UNSUPPORTED_PDF_MESSAGE)
+
     chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
     try:
@@ -305,9 +310,8 @@ def run_phase3():
         ids=ids,
         documents=documents,
         metadatas=metadatas,
-        embeddings=embeddings.tolist(),
+        embeddings=embeddings_list,
     )
-
 
 def process_book_pipeline():
     st.session_state["book_ready"] = False
