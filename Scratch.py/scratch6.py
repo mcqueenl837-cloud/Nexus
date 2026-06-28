@@ -206,14 +206,10 @@ def run_phase1():
     result = process_pdf(str(PDF_PATH))
 
     if result is None:
-        raise UnsupportedPDFError(
-            "This PDF does not appear to be text-based. It may be image-based or scanned. "
-            "Please upload a text-based PDF."
-        )
+        st.warning("This PDF appears to be image-based and cannot be processed. Please upload a text-based PDF.")
+        st.stop()
 
     return result
-
-
 def run_phase2():
     try:
         subprocess.run(
@@ -305,6 +301,9 @@ def run_phase3():
         pass
 
     collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+    if not embeddings or len(embeddings) == 0:
+        st.error("No text could be extracted from this PDF. Please upload a text-based PDF.")
+        return
 
     collection.add(
         ids=ids,
