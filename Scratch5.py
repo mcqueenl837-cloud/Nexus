@@ -53,13 +53,10 @@ def build_prompt(question):
      You have to give answer in the format of:
      -Question asked by user
      -your findings based upon Context given to you.
-     You have to give answer in range of 100-200 words only. Give more information by expanding the word range
-     if you think this is not sufficient information for question asked. 
-     You can give more information when someone asks a long query
-     or someone asks relation of upto three entities.
+     You have to give answer in range asked by user . If user explicity asks for a certain range please provide within that range.
      "I am unable to find any relevant content as per your question asked. It seems like you have 
      asked for something that doesn't exist in the book"
-     if you find the retrieved data irrevalent
+     if you find the retrieved data irrevalent.
      answer:
      """
     
