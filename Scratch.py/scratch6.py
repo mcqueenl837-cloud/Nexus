@@ -207,6 +207,8 @@ def reset_current_book():
 
     st.session_state["book_ready"] = False
     st.session_state["chat_history"] = []
+    st.session_state["conversation_history"] = []
+    st.session_state["last_context"] = None
     st.session_state["uploaded_file_name"] = None
     st.session_state["page_number"] = 1
     st.session_state["pipeline_error"] = None
@@ -367,30 +369,66 @@ def process_book_pipeline():
 
     st.session_state["book_ready"] = True
     return True
+def is_follow_up_question(question):
+    question_lower = question.lower()
 
+    follow_up_phrases = [
+        "i don't get it",
+        "i dont get it",
+        "i did not understand",
+        "i didn't understand",
+        "explain again",
+        "explain it again",
+        "explain this again",
+        "tell me again",
+        "tell me more",
+        "make it simple",
+        "simplify it",
+        "what does it mean",
+        "can you explain it",
+        "i am confused",
+        "i'm confused",
+        "this",
+        "that",
+        "it",
+    ]
 
+    for phrase in follow_up_phrases:
+        if phrase in question_lower:
+            return True
+
+    return False
 def build_prompt(question):
-    paths = get_session_paths()
-    embedding_model = load_embedding_model()
+    if (
+        is_follow_up_question(question)
+        and st.session_state.get("last_context")
+    ):
+        context = st.session_state["last_context"]
 
-    chroma_client = chromadb.PersistentClient(path=str(paths["chroma_path"]))
-    collection = chroma_client.get_collection(get_collection_name())
+    else:
+        paths = get_session_paths()
+        embedding_model = load_embedding_model()
 
-    query_embedding = embedding_model.encode(question).tolist()
+        chroma_client = chromadb.PersistentClient(path=str(paths["chroma_path"]))
+        collection = chroma_client.get_collection(get_collection_name())
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=3,
-        include=["documents", "metadatas", "distances"],
-    )
+        query_embedding = embedding_model.encode(question).tolist()
 
-    best_distance = results["distances"][0][0]
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=3,
+            include=["documents", "metadatas", "distances"],
+        )
 
-    if best_distance > 1.2:
-        return "OUT_OF_BOOK"
+        best_distance = results["distances"][0][0]
 
-    documents = results["documents"][0]
-    context = "\n\n".join(documents)
+        if best_distance > 1.2:
+            return "OUT_OF_BOOK"
+
+        documents = results["documents"][0]
+        context = "\n\n".join(documents)
+
+        st.session_state["last_context"] = context
 
     prompt = f"""Hello Groq, you are a set of teachers, Whose subject depends on the content given to you.
 You have to give response like you are teaching a college student. Types of questions you could expect from the user:
@@ -410,11 +448,11 @@ You have to give answer in the format of:
 -your findings based upon Context given to you.
 
 You have to give answer in range of 100-200 words only. Give more information by expanding the word range
-if you think this is not sufficient information for question asked. 
+if you think this is not sufficient information for question asked.
 You can give more information when someone asks a long query
 or someone asks relation of upto three entities.
 
-"I am unable to find any relevant content as per your question asked. It seems like you have 
+"I am unable to find any relevant content as per your question asked. It seems like you have
 asked for something that doesn't exist in the book"
 
 if you find the retrieved data irrevalent
@@ -423,7 +461,6 @@ answer:
 """
 
     return prompt
-
 def ask_backend(prompt):
     if prompt == "OUT_OF_BOOK":
         return (
@@ -431,19 +468,39 @@ def ask_backend(prompt):
             "It seems like you have asked for something that doesn't exist in the book."
         )
 
+    if "conversation_history" not in st.session_state:
+        st.session_state["conversation_history"] = []
+
     groq_client = load_groq_client()
+
+    st.session_state["conversation_history"].append(
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    )
+
+    if len(st.session_state["conversation_history"]) > 10:
+        st.session_state["conversation_history"] = st.session_state["conversation_history"][-10:]
 
     response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
+        messages=st.session_state["conversation_history"],
     )
 
-    return response.choices[0].message.content
+    assistant_message = response.choices[0].message.content
+
+    st.session_state["conversation_history"].append(
+        {
+            "role": "assistant",
+            "content": assistant_message,
+        }
+    )
+
+    if len(st.session_state["conversation_history"]) > 10:
+        st.session_state["conversation_history"] = st.session_state["conversation_history"][-10:]
+
+    return assistant_message
 
 
 def render_header():
@@ -512,6 +569,8 @@ def render_chat_panel():
 
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
+    if "conversation_history" not in st.session_state:
+        st.session_state["conversation_history"] = []    
 
     if not st.session_state.get("book_ready"):
         st.info("Upload and process a textbook before asking questions.")
