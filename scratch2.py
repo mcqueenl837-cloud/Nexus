@@ -105,12 +105,7 @@ def process_pdf(pdf_path, output_directory="."):
         print("Could not determine the first chapter. Starting from page 1.")
         start_page = 1
 
-    print("=" * 40)
-    print("TOC:", toc)
-    print("Length of TOC:", len(toc))
-    print("start_page:", start_page)
-    print("=" * 40)
-
+    
     book_dict = build_dict(doc, start_page)
 
     output_path = os.path.join(output_directory, "extracted_text1.json")
