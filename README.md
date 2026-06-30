@@ -109,7 +109,7 @@ https://dreamproject.streamlit.app/
 
 ## About me
 
-**I am a 5th semster BSc Physics studnt at PDEU,Gandhinagar,Gujarat.
+**I am a 5th semster BSc Physics student at PDEU,Gandhinagar,Gujarat.
 I built this project to solve my personal problem during my studying session.**   
 
 
