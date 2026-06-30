@@ -96,12 +96,15 @@ https://dreamproject.streamlit.app/
 ## Limitations
 
 **Only text-based pdf works for this project.**
+
 **No conversation memory of chatbot**
+
 **Single book support per session**
 
 ## Future additions
 
 **OCR(optical character recognition) for mapping of image scanned based Pdf.**
+
 **Conversation memory within a chatbot, would possess ability to remember conversation within one chat**
 
 ## About me
