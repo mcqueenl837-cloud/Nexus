@@ -4,20 +4,36 @@ Navigate knowledge the way textbooks actually build it.
 The Idea:
 While i was studying  from my Classical Mechanics textbook, i came across a problem . Textbooks have references for Topics,Equations and Figures, they are mentioned in nearby texts. When we try to find that cross-refrences within the books it takes a lot of time to gather them resulting in the wastage of time that could be used for studying further topics.
 
-What Nexus Does:
+## How It Works
 
-Nexus is a Retrieval-Augmented Generation (RAG) application designed to answer questions from a **text-based PDF textbook** with high accuracy while minimizing hallucinations.
-When a textbook is uploaded, Nexus first extracts its text using PyMuPDF. It then uses the PDF's Table of Contents (TOC) to identify where the actual chapters begin, ignoring front matter such as the cover page, copyright page, preface, and index.
+**Phase 1 — Extraction**
+Uses PyMuPDF's `get_toc()` to find the table of contents and 
+locate the page where actual content begins, skipping front 
+matter like the preface and copyright pages. Every page's text 
+is saved to a JSON dictionary, with page numbers as keys.
 
-The extracted content is stored in a JSON file where each key represents a page number and its corresponding value contains the complete text of that page.
-Next, Nexus analyzes the textbook using **Regular Expressions (Regex)** to identify the structure of the book. It recognizes chapter headings, equations, and figure captions through their numbering patterns, such as  Equation 7.8, Eq. 8.1, or Figure 9.1. For every topic it discovers, Nexus also searches the surrounding text to build relationships between topics, equations, and figures, creating a structured knowledge map of the textbook.
+**Phase 2 — Mapping**
+Regex identifies topics, equations, and figures by their naming 
+patterns (e.g. "3.2", "Equation 7.8", "Fig 9.1") and scans 
+nearby text for cross-references between them. The result is a 
+structured map: topic → content → related topics, equations, 
+and figures.
 
-The extracted information is stored in the following format:
-Topic->Topic Content->Related Topics,Equations and Figures
-This structured data is converted into vector embeddings using a pre-trained embedding model and stored in ChromaDB. When a user asks a question, Nexus performs a cosine similarity search to retrieve only the most relevant sections of the textbook. These retrieved passages, along with the user's question, are then sent to the language model with a carefully designed prompt.
+**Phase 3 — Embeddings**
+Each piece of content is converted into a vector embedding 
+using a pre-trained sentence-transformer model and stored in 
+ChromaDB.
 
-Unlike general-purpose AI assistants, Nexus does not send the entire textbook to the language model.
-For example, a 600-page textbook can easily require more than 500,000 tokens, which exceeds the context window of most language models and significantly increases token usage. Sending such a large amount of information is both inefficient and more likely to produce hallucinations.
+**Phase 4 — Retrieval and Response**
+When you ask a question, Nexus finds the closest matches via 
+cosine similarity, builds a prompt containing only that relevant 
+content, and sends it to Groq for an explanation.
+
+**Why this matters:** sending an entire 600-page book to an LLM 
+can mean 500,000+ tokens of context — most of it irrelevant to 
+your question, and a real driver of hallucination. By retrieving 
+only what's relevant, Nexus keeps the context small and grounded,
+which is the core idea behind RAG (Retrieval Augmented Generation).
 
 What Makes Nexus Different?
 
