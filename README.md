@@ -1,7 +1,7 @@
-NEXUS
-Navigate knowledge the way textbooks actually build it.
+##NEXUS
+**Navigate knowledge the way textbooks actually build it.**
 
-The Idea:
+##The Idea
 While i was studying  from my Classical Mechanics textbook, i came across a problem . Textbooks have references for Topics,Equations and Figures, they are mentioned in nearby texts. When we try to find that cross-refrences within the books it takes a lot of time to gather them resulting in the wastage of time that could be used for studying further topics.
 
 ## How It Works
@@ -66,6 +66,56 @@ Instead of sending an entire textbook to the LLM, Nexus retrieves only the most 
 | OS                          | Performs file and directory management operations.                                        | Simplifies filesystem interactions across the project.                          |
 
 
+## How To Run
+
+1. Clone the repository
+git clone https://github.com/mcqueen1837-cloud/Nexus.git
+cd Nexus
+
+2. Install dependencies
+pip install -r requirements.txt
+
+3. Add your API keys
+Create a file named `.env` in the project folder and add:
+GROQ_API_KEY=your_groq_api_key_here
+HF_TOKEN=your_huggingface_token_here
+You can get a free Groq API key at:
+https://console.groq.com/keys
+You can get a free Hugging Face token at:
+https://huggingface.co/settings/tokens
+
+4. Run the app
+streamlit run scratch6.py
+
+5. Open your browser
+Streamlit will automatically open at http://localhost:8501
+
+## Live Demo
+https://dreamproject.streamlit.app/
+
+##Limitations
+
+**Only text-based pdf works for this project.**
+**No conversation memory of chatbot**
+**Single book support per session**
+
+#Future additions
+
+**OCR(optical character recognition) for mapping of image scanned based Pdf.**
+**Conversation memory within a chatbot, would possess ability to remember conversation within one chat**
+
+#About me
+
+**I am a 5th semster BSc Physics studnt at PDEU,Gandhinagar,Gujarat.
+I built this project to solve my personal problem during my studying session.**   
 
 
+
+
+
+
+
+
+
+  
 
