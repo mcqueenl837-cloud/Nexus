@@ -1,7 +1,7 @@
-##NEXUS
+## NEXUS
 **Navigate knowledge the way textbooks actually build it.**
 
-##The Idea
+## The Idea
 While i was studying  from my Classical Mechanics textbook, i came across a problem . Textbooks have references for Topics,Equations and Figures, they are mentioned in nearby texts. When we try to find that cross-refrences within the books it takes a lot of time to gather them resulting in the wastage of time that could be used for studying further topics.
 
 ## How It Works
@@ -35,15 +35,15 @@ your question, and a real driver of hallucination. By retrieving
 only what's relevant, Nexus keeps the context small and grounded,
 which is the core idea behind RAG (Retrieval Augmented Generation).
 
-What Makes Nexus Different?
+## What Makes Nexus Different?
 
-Dependency Chain Detection:
+**Dependency Chain Detection:**
 Nexus doesn't retrieve isolated paragraphs. It builds a dependency chain by identifying related topics, equations, and figures, allowing the AI to understand the connections between concepts instead of treating each section independently.
 
-Model-Agnostic Design:
+**Model-Agnostic Design:**
 Nexus is independent of any specific Large Language Model. The retrieval pipeline is separated from the language model, allowing Groq, OpenAI, Claude, Gemini, or any compatible LLM to be integrated without changing the core architecture.
 
-Optimized Token Usage:
+**Optimized Token Usage:**
 Instead of sending an entire textbook to the LLM, Nexus retrieves only the most relevant content. This significantly reduces token usage, lowers inference cost, and improves response efficiency.
 
 ## Tech Stack
@@ -93,18 +93,18 @@ Streamlit will automatically open at http://localhost:8501
 ## Live Demo
 https://dreamproject.streamlit.app/
 
-##Limitations
+## Limitations
 
 **Only text-based pdf works for this project.**
 **No conversation memory of chatbot**
 **Single book support per session**
 
-#Future additions
+## Future additions
 
 **OCR(optical character recognition) for mapping of image scanned based Pdf.**
 **Conversation memory within a chatbot, would possess ability to remember conversation within one chat**
 
-#About me
+## About me
 
 **I am a 5th semster BSc Physics studnt at PDEU,Gandhinagar,Gujarat.
 I built this project to solve my personal problem during my studying session.**   
